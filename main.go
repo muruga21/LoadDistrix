@@ -13,9 +13,11 @@ import (
 )
 
 type RetryType int;
+type AttemptsType int;
 
 const (
-	Retry RetryType = iota
+	Attempts AttemptsType = iota
+	Retry
 )
 
 type Backend struct {
@@ -67,6 +69,7 @@ func (s *ServerPool) GetNextPeer() *Backend {
 	return nil
 }
 
+//this functions returns the retry count from the context
 func GetRetryFromContext(r *http.Request) int {
 	if retry, ok := r.Context().Value(Retry).(int); ok {
 		return retry
@@ -74,8 +77,22 @@ func GetRetryFromContext(r *http.Request) int {
 	return 0
 }
 
+//this function returns the attempts from the context
+func GetAttemptsFromContext(r *http.Request) int {
+	if attempts, ok := r.Context().Value(Attempts).(int); ok {
+		return attempts
+	}
+	return 1
+}
+
 func lb(w http.ResponseWriter, r *http.Request) {
 	peer := serverPool.GetNextPeer()
+	attempts := GetAttemptsFromContext(r)
+	fmt.Println(serverPool.current)
+	if(attempts >3) {
+		http.Error(w, "Service not available, max attempts reached", http.StatusServiceUnavailable)
+		return
+	}
 	if peer != nil {
 		peer.ReverseProxy.ServeHTTP(w, r)
 		return
@@ -111,8 +128,16 @@ func main() {
 
 		//if the retry count is more than 3 then mark the server as down
 		serverPool.MarkDownTheServer(url, false)
-		lb(w, r) //this function will find the next alive server and redirect the request
+		attempts := GetAttemptsFromContext(r)
+		ctx := context.WithValue(r.Context(), Attempts, attempts+1)
+		lb(w, r.WithContext(ctx)) //this function will find the next alive server and redirect the request
 	}
+
+	serverPool.backends = append(serverPool.backends, &Backend{
+		URL: url,
+		Alive: true,
+		ReverseProxy: proxy,
+	})
 
 	server := http.Server{ // this is main server
 		Addr:    fmt.Sprintf(":%d", 8081),
