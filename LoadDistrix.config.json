@@ -1,0 +1,12 @@
+{
+    "backend":[
+        {
+            "host":"backend1",
+            "url":"https://gist.github.com/JalfResi/6287706"
+        },
+        {
+            "host":"backend2",
+            "url":"https://www.youtube.com/"
+        }
+    ]
+}

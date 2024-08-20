@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -18,6 +21,15 @@ const (
 	Attempts AttemptsType = iota
 	Retry
 )
+
+type BackendServer struct {
+	Host string `json:"host"`
+	Url  string `json:"url"`
+}
+
+type Config struct {
+	Backend []BackendServer `json:"backend"`
+}
 
 type Backend struct {
 	URL          *url.URL
@@ -114,18 +126,25 @@ func (s *ServerPool) MarkDownTheServer(backendUrl *url.URL, serverStatus bool) {
 }
 
 func testHandler(w http.ResponseWriter, r *http.Request) {
-    log.Println("Test handler received request:", r.URL.Path)
-    w.Write([]byte("Hello from test handler"))
+	log.Println("Test handler received request:", r.URL.Path)
+	w.Write([]byte("Hello from test handler"))
 }
-
-
 
 // main function
 func main() {
 	backendservers := []string{}
 
-	backendservers = append(backendservers, "https://gist.github.com/JalfResi/6287706")
-	backendservers = append(backendservers, "https://www.youtube.com/")
+	jsonFile, _ := os.Open("LoadDistrix.config.json")
+	byteValue, _ := ioutil.ReadAll(jsonFile)
+
+	var config Config
+
+	json.Unmarshal(byteValue, &config)
+	log.Println(config)
+	for _, node := range config.Backend {
+		log.Println("check")
+		backendservers = append(backendservers, node.Url)
+	}
 
 	if len(backendservers) == 0 {
 		log.Println("No backend servers found")
@@ -143,7 +162,7 @@ func main() {
 			r.Header.Set("User-Agent", "Your-User-Agent")
 			r.Header.Set("Accept", "application/json")
 			r.Header.Set("X-Custom-Header", "CustomValue")
-		
+
 			// Adjust URL and Host
 			r.URL.Scheme = be.Scheme
 			r.URL.Host = be.Host
@@ -151,7 +170,7 @@ func main() {
 		}
 		proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, e error) {
 
-    		log.Printf("[%s] Request Canceled: %v\n", be.Host, r.Context().Err() == context.Canceled)
+			log.Printf("[%s] Request Canceled: %v\n", be.Host, r.Context().Err() == context.Canceled)
 
 			log.Printf("[%s] %s\n", be.Host, e.Error())
 			retries := GetRetryFromContext(r) //by default the retry count is 0
