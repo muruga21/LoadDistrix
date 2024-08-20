@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	// "fmt"
 	"log"
 	"net/http"
 	"net/http/httputil"
@@ -54,6 +53,7 @@ func (s *ServerPool) NextServerIndex() int {
 
 func (s *ServerPool) GetNextPeer() *Backend {
 	//next peer index.. we dont know if the peer is alive or not.. we need to iterate through the server pool to find the next aliver server
+	log.Println("Getting next peer")
 	nxtIndex := s.NextServerIndex()
 	lenOfBackendArr := len(s.backends)
 	lenghtNeedToTraverse := lenOfBackendArr + nxtIndex //start from the next index and traverse the entire server pool [cycle]
@@ -87,6 +87,8 @@ func GetAttemptsFromContext(r *http.Request) int {
 }
 
 func lb(w http.ResponseWriter, r *http.Request) {
+	log.Println("Load balancing the request")
+	log.Printf("Load balancing request: %s", r.URL.String())
 	peer := serverPool.GetNextPeer()
 	attempts := GetAttemptsFromContext(r)
 	log.Println(serverPool.current)
@@ -122,8 +124,8 @@ func testHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 	backendservers := []string{}
 
-	backendservers = append(backendservers, "https://google.com")
-	// backendservers = append(backendservers, "https://www.youtube.com/")
+	backendservers = append(backendservers, "https://gist.github.com/JalfResi/6287706")
+	backendservers = append(backendservers, "https://www.youtube.com/")
 
 	if len(backendservers) == 0 {
 		log.Println("No backend servers found")
@@ -149,8 +151,9 @@ func main() {
 		}
 		proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, e error) {
 
+    		log.Printf("[%s] Request Canceled: %v\n", be.Host, r.Context().Err() == context.Canceled)
+
 			log.Printf("[%s] %s\n", be.Host, e.Error())
-			r.Header.Set("User-Agent", "Custom-User-Agent")
 			retries := GetRetryFromContext(r) //by default the retry count is 0
 			if retries < 3 {
 				time.Sleep(10 * time.Millisecond)
@@ -174,12 +177,12 @@ func main() {
 	}
 	// http.HandleFunc("/", testHandler)
 	http.HandleFunc("/", http.HandlerFunc(lb))
-	err := http.ListenAndServe(":5000", nil)
+	err := http.ListenAndServe(":8000", nil)
 
 	if err != nil {
 		log.Println("Error starting server: ", err)
 	}
 
-	log.Println("Server started at port 5000")
+	log.Println("Server started at port 8000")
 
 }
