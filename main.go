@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"log"
+	"math"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -22,13 +23,13 @@ const (
 	Retry
 )
 
-type BackendServer struct {
+type BackendServer_config struct {
 	Host string `json:"host"`
 	Url  string `json:"url"`
 }
 
 type Config struct {
-	Backend []BackendServer `json:"backend"`
+	Backend_config []BackendServer_config `json:"backend"`
 }
 
 type Backend struct {
@@ -60,6 +61,9 @@ var serverPool ServerPool
 // get the next server index in the server pool
 func (s *ServerPool) NextServerIndex() int {
 	nxtIndex := atomic.AddUint64(&s.current, uint64(1)) % uint64(len(s.backends))
+	if(s.current >= math.MaxUint64){
+		atomic.StoreUint64(&s.current, 0)
+	}
 	return int(nxtIndex)
 }
 
@@ -141,7 +145,7 @@ func main() {
 
 	json.Unmarshal(byteValue, &config)
 	log.Println(config)
-	for _, node := range config.Backend {
+	for _, node := range config.Backend_config {
 		log.Println("check")
 		backendservers = append(backendservers, node.Url)
 	}
