@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io/ioutil"
@@ -103,17 +104,15 @@ func GetAttemptsFromContext(r *http.Request) int {
 }
 
 func lb(w http.ResponseWriter, r *http.Request) {
-	log.Println("Load balancing the request")
-	log.Printf("Load balancing request: %s", r.URL.String())
 	peer := serverPool.GetNextPeer()
 	attempts := GetAttemptsFromContext(r)
-	log.Println(serverPool.current)
 	if attempts > 3 {
 		http.Error(w, "Service not available, max attempts reached", http.StatusServiceUnavailable)
 		return
 	}
 	if peer != nil {
 		peer.ReverseProxy.ServeHTTP(w, r)
+		log.Println("This is request host", r.Host)
 		log.Println(serverPool.current)
 		return
 	}
@@ -144,9 +143,7 @@ func main() {
 	var config Config
 
 	json.Unmarshal(byteValue, &config)
-	log.Println(config)
 	for _, node := range config.Backend_config {
-		log.Println("check")
 		backendservers = append(backendservers, node.Url)
 	}
 
@@ -166,30 +163,52 @@ func main() {
 			r.Header.Set("User-Agent", "Your-User-Agent")
 			r.Header.Set("Accept", "application/json")
 			r.Header.Set("X-Custom-Header", "CustomValue")
-
 			// Adjust URL and Host
 			r.URL.Scheme = be.Scheme
 			r.URL.Host = be.Host
 			r.Host = be.Host
 		}
+
 		proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, e error) {
-
 			log.Printf("[%s] Request Canceled: %v\n", be.Host, r.Context().Err() == context.Canceled)
-
 			log.Printf("[%s] %s\n", be.Host, e.Error())
-			retries := GetRetryFromContext(r) //by default the retry count is 0
+		
+			retries := GetRetryFromContext(r) // by default the retry count is 0
+			log.Println("This is the retry count", retries, "of the server", serverPool.current)
+		
 			if retries < 3 {
 				time.Sleep(10 * time.Millisecond)
-				ctx := context.WithValue(r.Context(), RetryType(Retry), retries+1) //increment the retry count and set it in context
+				ctx := context.WithValue(r.Context(), Retry, retries+1) // increment the retry count and set it in context
+		
+				// Recreate the request body
+				body, err := ioutil.ReadAll(r.Body)
+				if err != nil {
+					log.Printf("Error reading body: %v", err)
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					return
+				}
+				r.Body = ioutil.NopCloser(bytes.NewReader(body))
+		
 				proxy.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}
-
-			//if the retry count is more than 3 then mark the server as down
+		
+			// if the retry count is more than 3 then mark the server as down
+			log.Printf("[%s] Marking server as down\n", be.Host, serverPool.current)
 			serverPool.MarkDownTheServer(be, false)
 			attempts := GetAttemptsFromContext(r)
 			ctx := context.WithValue(r.Context(), Attempts, attempts+1)
-			lb(w, r.WithContext(ctx)) //this function will find the next alive server and redirect the request
+		
+			// Recreate the request body
+			body, err := ioutil.ReadAll(r.Body)
+			if err != nil {
+				log.Printf("Error reading body: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
+			r.Body = ioutil.NopCloser(bytes.NewReader(body))
+		
+			lb(w, r.WithContext(ctx)) // this function will find the next alive server and redirect the request
 		}
 
 		serverPool.backends = append(serverPool.backends, &Backend{
@@ -199,13 +218,16 @@ func main() {
 		})
 	}
 	// http.HandleFunc("/", testHandler)
-	http.HandleFunc("/", http.HandlerFunc(lb))
-	err := http.ListenAndServe(":8000", nil)
-
-	if err != nil {
-		log.Println("Error starting server: ", err)
+	server := &http.Server{
+		Addr: ":8000",
+		WriteTimeout: 15 * time.Second,
+		ReadTimeout: 15 * time.Second,
+		IdleTimeout: 60 * time.Second,
+		Handler:http.HandlerFunc(lb),
 	}
-
-	log.Println("Server started at port 8000")
+	log.Println("Server is starting on port 8000")
+	if err := server.ListenAndServe(); err != nil {
+		log.Fatalf("Server failed: %v", err)
+	}
 
 }

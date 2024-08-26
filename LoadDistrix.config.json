@@ -2,11 +2,11 @@
     "backend":[
         {
             "host":"backend1",
-            "url":"https://gist.github.com/JalfResi/6287706"
+            "url":"http://localhost:5000"
         },
         {
             "host":"backend2",
-            "url":"https://www.youtube.com/"
+            "url":"https://effitrack-backend.vercel.app"
         }
     ]
 }
