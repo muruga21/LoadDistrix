@@ -5,14 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"loadbalancer/lib"
 	"log"
-	"math"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
-	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -24,68 +22,7 @@ const (
 	Retry
 )
 
-type BackendServer_config struct {
-	Host string `json:"host"`
-	Url  string `json:"url"`
-}
-
-type Config struct {
-	Backend_config []BackendServer_config `json:"backend"`
-}
-
-type Backend struct {
-	URL          *url.URL
-	Alive        bool
-	Mux          sync.RWMutex
-	ReverseProxy *httputil.ReverseProxy
-}
-
-func (b *Backend) IsAlive() bool {
-	b.Mux.RLock()
-	defer b.Mux.RUnlock()
-	return b.Alive
-}
-
-func (b *Backend) SetAlive(alive bool) {
-	b.Mux.Lock()
-	defer b.Mux.Unlock()
-	b.Alive = alive
-}
-
-type ServerPool struct {
-	backends []*Backend
-	current  uint64
-}
-
-var serverPool ServerPool
-
-// get the next server index in the server pool
-func (s *ServerPool) NextServerIndex() int {
-	nxtIndex := atomic.AddUint64(&s.current, uint64(1)) % uint64(len(s.backends))
-	if s.current >= math.MaxUint64-1 {
-		atomic.StoreUint64(&s.current, 0)
-	}
-	return int(nxtIndex)
-}
-
-func (s *ServerPool) GetNextPeer() *Backend {
-	//next peer index.. we dont know if the peer is alive or not.. we need to iterate through the server pool to find the next aliver server
-	log.Println("Getting next peer")
-	nxtIndex := s.NextServerIndex()
-	lenOfBackendArr := len(s.backends)
-	lenghtNeedToTraverse := lenOfBackendArr + nxtIndex //start from the next index and traverse the entire server pool [cycle]
-
-	for i := nxtIndex; i < lenghtNeedToTraverse; i++ {
-		index := i % lenOfBackendArr
-		log.Printf("Checking server at index %d, Alive: %v\n", index, s.backends[index].IsAlive())
-		if s.backends[index].IsAlive() { //check if the server is alive
-			atomic.StoreUint64(&s.current, uint64(index))
-			return s.backends[index] //return the alive server
-		}
-	}
-
-	return nil
-}
+var serverPool lib.ServerPool
 
 // this functions returns the retry count from the context
 func GetRetryFromContext(r *http.Request) int {
@@ -112,20 +49,9 @@ func lb(w http.ResponseWriter, r *http.Request) {
 	}
 	if peer != nil {
 		peer.ReverseProxy.ServeHTTP(w, r)
-		log.Println("This is request host", r.Host)
-		log.Println(serverPool.current)
 		return
 	}
 	http.Error(w, "Service not available", http.StatusServiceUnavailable)
-}
-
-func (s *ServerPool) MarkDownTheServer(backendUrl *url.URL, serverStatus bool) {
-	for _, backend := range s.backends {
-		if backend.URL.String() == backendUrl.String() {
-			backend.SetAlive(serverStatus)
-			return
-		}
-	}
 }
 
 // main function
@@ -135,10 +61,10 @@ func main() {
 	jsonFile, _ := os.Open("LoadDistrix.config.json")
 	byteValue, _ := io.ReadAll(jsonFile)
 
-	var config Config
+	var config lib.Config
 
 	json.Unmarshal(byteValue, &config)
-	for _, node := range config.Backend_config {
+	for _, node := range config.BackendConfig {
 		backendservers = append(backendservers, node.Url)
 	}
 
@@ -173,7 +99,7 @@ func main() {
 			log.Printf("[%s] %s\n", be.Host, e.Error())
 
 			retries := GetRetryFromContext(r) // by default the retry count is 0
-			log.Println("This is the retry count", retries, "of the server", serverPool.current)
+			log.Println("This is the retry count", retries, "of the server", serverPool.Current)
 
 			if retries < 3 {
 				time.Sleep(10 * time.Millisecond)
@@ -185,7 +111,7 @@ func main() {
 			}
 
 			// if the retry count is more than 3 then mark the server as down
-			log.Printf("[%s] Marking server as down\n", be.Host, serverPool.current)
+			log.Printf("[%s] Marking server as down\n", be.Host)
 			serverPool.MarkDownTheServer(be, false)
 			// attempts := GetAttemptsFromContext(r)
 			// ctx := context.WithValue(r.Context(), Attempts, attempts+1)
@@ -193,7 +119,7 @@ func main() {
 			lb(w, r) // this function will find the next alive server and redirect the request
 		}
 
-		serverPool.backends = append(serverPool.backends, &Backend{
+		serverPool.Backends = append(serverPool.Backends, &lib.ServerNode{
 			URL:          be,
 			Alive:        true,
 			ReverseProxy: proxy,
