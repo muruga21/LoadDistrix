@@ -6,7 +6,7 @@
         },
         {
             "host":"backend2",
-            "url":"https://effitrack-backend.vercel.app"
+            "url":"https://webathon-journal.onrender.com"
         }
     ]
 }
