@@ -71,7 +71,7 @@ Load Distrix is a simple HTTP load balancer written in Go. It distributes incomi
 
 ```sh
 go build -o loaddistrix main.go
-./loaddistrix
+./loaddistrix <config-file>
 ````
 
 4. The load balancer will start on port 8000. You can now send HTTP requests to `http://localhost:8000`, and they will be distributed across your configured backend servers.
