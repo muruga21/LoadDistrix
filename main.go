@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"io"
 	"loadbalancer/lib"
 	"log"
@@ -54,16 +53,24 @@ func lb(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "Service not available", http.StatusServiceUnavailable)
 }
 
-// main function
+// main function with arguement for configfile
 func main() {
+	// get file name from argument
+	arg := os.Args
+	if len(arg) != 2 {
+		log.Fatal("usage go run main.go <config-file>'")
+	}
+	
+	// declare slice for backend server
 	backendservers := []string{}
 
-	jsonFile, _ := os.Open("LoadDistrix.config.json")
-	byteValue, _ := io.ReadAll(jsonFile)
-
+	// read the config file and get the host and url.
 	var config lib.Config
+	config, err := lib.ReadConfig(arg[1])
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	json.Unmarshal(byteValue, &config)
 	for _, node := range config.BackendConfig {
 		backendservers = append(backendservers, node.Url)
 	}
