@@ -1,12 +1,17 @@
 {
-    "backend":[
-        {
-            "host":"backend1",
-            "url":"http://localhost:5000"
-        },
-        {
-            "host":"backend2",
-            "url":"https://webathon-journal.onrender.com"
-        }
-    ]
+  "backend": [
+    {
+      "host": "backend1",
+      "url": "http://localhost:3000"
+    },
+    {
+      "host": "backend2",
+      "url": "http://localhost:3001"
+    },
+    {
+      "host": "backend3",
+      "url": "http://localhost:3002"
+    }
+  ]
 }
+
