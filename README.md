@@ -1,8 +1,16 @@
-# Load Distrix
-
+<a id="top"></a>
+<h1 align="center">Load Distrix</h1>
+<h3 align="center">    
+ 
 Load Distrix is a simple HTTP load balancer written in Go. It distributes incoming HTTP requests across multiple backend servers, ensuring high availability and fault tolerance. The load balancer uses a round-robin algorithm to cycle through the available backend servers, automatically retrying requests on failure and marking unresponsive servers as down.
+</h3>
+<hr>
 
-## Features
+
+
+
+
+## Features :crystal_ball:
 
 - **Round-Robin Load Balancing:** Distributes requests evenly across backend servers.
 - **Health Checks:** Continuously monitors the status of backend servers.
@@ -15,6 +23,7 @@ Load Distrix is a simple HTTP load balancer written in Go. It distributes incomi
 - A configured JSON file named `LoadDistrix.config.json` with backend server details.
 
 ## Usage
+
 
 1. Clone the repository:
 
@@ -74,7 +83,11 @@ go build -o loaddistrix main.go
 
 4. The load balancer will start on port 8000. You can now send HTTP requests to `http://localhost:8000`, and they will be distributed across your configured backend servers.
 
-## Configuration
+<hr>
+
+ <details>
+   <summary><h3>Configuration :mailbox_with_mail:</h3></summary>
+
 
 To configure loadbalancer, write a configuration file with your choice of file extension. Each backend server should be specified with its `host` and `url`.
 
@@ -116,3 +129,46 @@ url="http://127.0.0.1:8082"
 
  ...continue with your backend configuration
 ```
+
+
+</details>
+
+## :zap: Featured In:
+
+
+ <div>
+    <h2><img src="https://github.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/blob/master/Emojis/Hand%20gestures/Flexed%20Biceps.png?raw=true" width="35" height="35" > Open Source Programs</h2>
+  </div>
+<table>
+   <tr>
+      <th>Event Logo</th>
+      <th>Event Name</th>
+      <th>Event Description</th>
+   </tr>
+   <tr>
+      <td><img src="https://user-images.githubusercontent.com/63473496/153487849-4f094c16-d21c-463e-9971-98a8af7ba372.png" width="200" height="auto" loading="lazy" alt="GSSoC 24"/></td>
+      <td>GirlScript Summer of Code 2024</td>
+      <td>GirlScript Summer of Code is a three-month-long Open Source Program conducted every summer by GirlScript Foundation. It is an initiative to bring more beginners to Open-Source Software Development.</td>
+   </tr>
+</table>
+<hr>
+
+
+<h2 align = "center">Our Contributors ❤️</h2>
+
+<a href="https://github.com/muruga21/LoadDistrix/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=muruga21/LoadDistrix" />
+</a>
+<hr>
+
+
+<div>
+  <h2><img src="https://fonts.gstatic.com/s/e/notoemoji/latest/1f64f_1f3fb/512.webp" width="35" height="35"> Support </h2>
+</div>
+
+<div>
+  Don't forget to leave a star<img src="https://fonts.gstatic.com/s/e/notoemoji/latest/1f31f/512.webp" width="35" height="30"> for this project!
+</div> <br>
+
+<a href="#top" style="position: fixed; bottom: 20px; right: 20px; background-color: black ; color: white; padding: 10px 20px; text-align: center; text-decoration: none; display: inline-block; border-radius: 5px; font-family: Arial; font-size: 16px;">Go to Top</a>
+
