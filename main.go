@@ -25,6 +25,36 @@ const (
 
 var serverPool lib.ServerPool
 
+// this function creates a log file if it does not already exist
+func InitLogger() (*os.File, error) {
+	logFile, err := os.OpenFile("loadbalancer.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	if err != nil {
+		return nil, err
+	}
+	log.SetOutput(logFile)
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	return logFile, nil
+}
+
+// this function logs details about incoming requests
+func LogRequest(r *http.Request) {
+	clientIp := r.RemoteAddr
+	method := r.Method
+	url := r.URL.String()
+	log.Printf("Received request from %s : %s, %s ", clientIp, method, url)
+}
+
+// this function logs which backend is selected
+func LogBackendSelection(backendURL string) {
+	log.Printf("Routing request to backend: %s", backendURL)
+}
+
+// this function measures the time taken to process a request
+func TrackresponseTime(start time.Time, backendURL string) {
+	duration := time.Since(start)
+	log.Printf("Request to backend %s took %v", backendURL, duration)
+}
+
 // this functions returns the retry count from the context
 func GetRetryFromContext(r *http.Request) int {
 	if retry, ok := r.Context().Value(Retry).(int); ok {
@@ -42,6 +72,9 @@ func GetAttemptsFromContext(r *http.Request) int {
 }
 
 func lb(w http.ResponseWriter, r *http.Request) {
+	//log the request
+	LogRequest(r)
+
 	peer := serverPool.GetNextPeer()
 	attempts := GetAttemptsFromContext(r)
 	if attempts > 3 {
@@ -49,13 +82,26 @@ func lb(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if peer != nil {
+		LogBackendSelection(peer.URL.String())
+		startTime := time.Now()
 		peer.ReverseProxy.ServeHTTP(w, r)
+		// Log response time
+		TrackresponseTime(startTime, peer.URL.String())
 		return
 	}
 	http.Error(w, "Service not available", http.StatusServiceUnavailable)
 }
 
 func main() {
+
+	//Initialize logger
+	logfile, err := InitLogger()
+	if err != nil {
+		log.Fatalf("Error initializing logger: %v", err)
+	}
+
+	defer logfile.Close()
+
 	// get file name from argument
 	arg := os.Args
 	if len(arg) != 2 {
@@ -67,7 +113,7 @@ func main() {
 
 	// read the config file and get the host and url.
 	var config lib.Config
-	config, err := lib.ReadConfig(arg[1])
+	config, err = lib.ReadConfig(arg[1])
 	if err != nil {
 		log.Fatal(err)
 	}
