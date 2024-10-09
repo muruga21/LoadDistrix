@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"loadbalancer/lib"
 	"log"
@@ -13,6 +14,8 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	gomail "gopkg.in/gomail.v2"
 )
 
 type RetryType int
@@ -25,7 +28,7 @@ const (
 
 var serverPool lib.ServerPool
 
-// this function creates a log file if it does not already exist
+// Initialize logger
 func InitLogger() (*os.File, error) {
 	logFile, err := os.OpenFile("loadbalancer.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
@@ -36,7 +39,7 @@ func InitLogger() (*os.File, error) {
 	return logFile, nil
 }
 
-// this function logs details about incoming requests
+// Log incoming requests
 func LogRequest(r *http.Request) {
 	clientIp := r.RemoteAddr
 	method := r.Method
@@ -44,18 +47,18 @@ func LogRequest(r *http.Request) {
 	log.Printf("Received request from %s : %s, %s ", clientIp, method, url)
 }
 
-// this function logs which backend is selected
+// Log backend selection
 func LogBackendSelection(backendURL string) {
 	log.Printf("Routing request to backend: %s", backendURL)
 }
 
-// this function measures the time taken to process a request
+// Track response time
 func TrackresponseTime(start time.Time, backendURL string) {
 	duration := time.Since(start)
 	log.Printf("Request to backend %s took %v", backendURL, duration)
 }
 
-// this functions returns the retry count from the context
+// Get retry count from context
 func GetRetryFromContext(r *http.Request) int {
 	if retry, ok := r.Context().Value(Retry).(int); ok {
 		return retry
@@ -63,7 +66,7 @@ func GetRetryFromContext(r *http.Request) int {
 	return 0
 }
 
-// this function returns the attempts from the context
+// Get attempts from context
 func GetAttemptsFromContext(r *http.Request) int {
 	if attempts, ok := r.Context().Value(Attempts).(int); ok {
 		return attempts
@@ -71,8 +74,9 @@ func GetAttemptsFromContext(r *http.Request) int {
 	return 1
 }
 
+// Load balancer handler
 func lb(w http.ResponseWriter, r *http.Request) {
-	//log the request
+	// Log the request
 	LogRequest(r)
 
 	peer := serverPool.GetNextPeer()
@@ -92,26 +96,59 @@ func lb(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "Service not available", http.StatusServiceUnavailable)
 }
 
-func main() {
+// Health check function
+func healthCheck() {
+	for {
+		for _, backend := range serverPool.Backends {
+			resp, err := http.Get(backend.URL.String())
+			if err != nil || resp.StatusCode != http.StatusOK {
+				log.Printf("Server down: %s, sending alert.", backend.URL.String())
+				sendAlert(backend.URL.String())
+				serverPool.MarkDownTheServer(backend.URL, true) // Mark the server as down
+			} else {
+				serverPool.MarkDownTheServer(backend.URL, false) // Mark the server as up if it's responding
+			}
+			if resp != nil {
+				resp.Body.Close()
+			}
+		}
+		time.Sleep(30 * time.Second) // Check every 30 seconds
+	}
+}
 
-	//Initialize logger
+// Send alert function
+func sendAlert(serverURL string) {
+	m := gomail.NewMessage()
+	m.SetHeader("From", "your-email@example.com") // Replace with your email
+	m.SetHeader("To", "recipient-email@example.com") // Replace with recipient email
+	m.SetHeader("Subject", "Alert: Server is down")
+	m.SetBody("text/plain", "The server at "+serverURL+" is unresponsive.")
+
+	d := gomail.NewDialer("smtp.example.com", 587, "your-email@example.com", "your-email-password") // Replace with your SMTP details
+
+	if err := d.DialAndSend(m); err != nil {
+		log.Printf("Failed to send alert: %v", err)
+	}
+}
+
+func main() {
+	// Initialize logger
 	logfile, err := InitLogger()
 	if err != nil {
 		log.Fatalf("Error initializing logger: %v", err)
 	}
-
 	defer logfile.Close()
 
-	// get file name from argument
+	// Get file name from argument
 	arg := os.Args
 	if len(arg) != 2 {
-		log.Fatal("usage go run main.go <config-file>'")
+		log.Fatal("usage: go run main.go <config-file>")
 	}
 
-	// declare slice for backend server
+	// Declare slice for backend servers
 	backendservers := []string{}
 
-	// read the config file and get the host and url.
+	// Read the config file and get the host and URL.
 	var config lib.Config
 	config, err = lib.ReadConfig(arg[1])
 	if err != nil {
@@ -129,7 +166,6 @@ func main() {
 	for _, backend := range backendservers {
 		log.Println("Load balancing to the backend server: ", backend)
 		be, err := url.Parse(backend)
-		log.Println(be)
 		if err != nil {
 			log.Println("Error parsing URL")
 		}
@@ -175,6 +211,9 @@ func main() {
 			ReverseProxy: proxy,
 		})
 	}
+
+	// Start the health check in a separate goroutine
+	go healthCheck()
 
 	server := &http.Server{
 		Addr:         ":8000",
