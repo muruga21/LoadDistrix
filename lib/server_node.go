@@ -9,6 +9,7 @@ import (
 type ServerNode struct {
 	URL          *url.URL
 	Alive        bool
+	Weight       int
 	Mux          sync.RWMutex
 	ReverseProxy *httputil.ReverseProxy
 }
