@@ -1,40 +1,56 @@
 package lib
 
 import (
+	"container/heap"
 	"log"
-	"math"
 	"net/url"
-	"sync/atomic"
+	"sync"
 )
 
-type ServerPool struct {
-	Backends []*ServerNode
-	Current  uint64
+type ServerNodeQueue []*ServerNode
+
+func (pq ServerNodeQueue) Len() int {
+	return len(pq)
 }
 
-func (s *ServerPool) NextServerIndex() int {
-	nxtIndex := atomic.AddUint64(&s.Current, uint64(1)) % uint64(len(s.Backends))
-	if s.Current >= math.MaxUint64-1 {
-		atomic.StoreUint64(&s.Current, 0)
-	}
-	return int(nxtIndex)
+func (pq ServerNodeQueue) Less(i, j int) bool {
+	return (pq[i].Weight < pq[j].Weight)
+}
+
+func (pq ServerNodeQueue) Swap(i, j int) { pq[i], pq[j] = pq[j], pq[i] }
+
+func (pq *ServerNodeQueue) Push(x interface{}) {
+	*pq = append(*pq, x.(*ServerNode))
+}
+
+func (pq *ServerNodeQueue) Pop() interface{} {
+	old := *pq
+	n := len(old)
+	item := old[n-1]
+	*pq = old[0 : n-1]
+	return item
+}
+
+type ServerPool struct {
+	Backends ServerNodeQueue
+	mutex    sync.Mutex
 }
 
 func (s *ServerPool) GetNextPeer() *ServerNode {
-	log.Println("Getting next peer")
-	nxtIndex := s.NextServerIndex()
-	lenOfBackendArr := len(s.Backends)
-	lengthNeedToTraverse := lenOfBackendArr + nxtIndex
-
-	for i := nxtIndex; i < lengthNeedToTraverse; i++ {
-		index := i % lenOfBackendArr
-		log.Printf("Checking server at index %d, Alive: %v\n", index, s.Backends[index].IsAlive())
-		if s.Backends[index].IsAlive() {
-			atomic.StoreUint64(&s.Current, uint64(index))
-			return s.Backends[index]
+	log.Println("Getting next peer.. !")
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	var server *ServerNode
+	for s.Backends.Len() > 0 {
+		server = heap.Pop(&s.Backends).(*ServerNode)
+		if server.Alive {
+			server.Mux.Lock()
+			server.Weight++
+			server.Mux.Unlock()
+			heap.Push(&s.Backends, server)
+			return server
 		}
 	}
-
 	return nil
 }
 
