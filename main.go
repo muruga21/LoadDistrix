@@ -87,6 +87,11 @@ func lb(w http.ResponseWriter, r *http.Request) {
 		peer.ReverseProxy.ServeHTTP(w, r)
 		// Log response time
 		TrackresponseTime(startTime, peer.URL.String())
+		peer.Mux.Lock()
+		if peer.Weight > 0 {
+			peer.Weight--
+		}
+		peer.Mux.Unlock()
 		return
 	}
 	http.Error(w, "Service not available", http.StatusServiceUnavailable)
@@ -152,7 +157,7 @@ func main() {
 			log.Printf("[%s] %s\n", be.Host, e.Error())
 
 			retries := GetRetryFromContext(r)
-			log.Println("This is the retry count", retries, "of the server", serverPool.Current)
+			log.Println("This is the retry count", retries, "of the server")
 
 			if retries < 3 {
 				time.Sleep(10 * time.Millisecond)
@@ -162,11 +167,11 @@ func main() {
 				proxy.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}
-
+			ctx := context.WithValue(r.Context(), Retry, 0)
 			log.Printf("[%s] Marking server as down\n", be.Host)
 			serverPool.MarkDownTheServer(be, false)
 
-			lb(w, r)
+			lb(w, r.WithContext(ctx))
 		}
 
 		serverPool.Backends = append(serverPool.Backends, &lib.ServerNode{
