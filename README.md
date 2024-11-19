@@ -2,7 +2,7 @@
 <h1 align="center">Load Distrix</h1>
 <h3 align="center">    
  
-Load Distrix is a simple HTTP load balancer written in Go. It distributes incoming HTTP requests across multiple backend servers, ensuring high availability and fault tolerance. The load balancer uses a round-robin algorithm to cycle through the available backend servers, automatically retrying requests on failure and marking unresponsive servers as down.
+Load Distrix is a simple HTTP load balancer written in Go. It distributes incoming HTTP requests across multiple backend servers, ensuring high availability and fault tolerance. The load balancer uses a weighted round-robin algorithm to cycle through the available backend servers, automatically retrying requests on failure and marking unresponsive servers as down.
 </h3>
 <hr>
 
@@ -12,7 +12,7 @@ Load Distrix is a simple HTTP load balancer written in Go. It distributes incomi
 
 ## Features :crystal_ball:
 
-- **Round-Robin Load Balancing:** Distributes requests evenly across backend servers.
+- **Round-Robin (weighted) Load Balancing:** Distributes requests evenly across backend servers.
 - **Health Checks:** Continuously monitors the status of backend servers.
 - **Automatic Retry:** Retries requests up to three times in case of failure.
 - **Dynamic Server Pool:** Automatically adjusts to backend server availability.
