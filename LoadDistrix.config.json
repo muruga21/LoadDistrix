@@ -10,7 +10,7 @@
     },
     {
       "host": "backend3",
-      "url": "http://localhost:3002"
+      "url": "https://infyspringboard.onwingspan.com/"
     }
   ]
 }

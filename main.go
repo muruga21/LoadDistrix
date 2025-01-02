@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"loadbalancer/lib"
 	"log"
@@ -181,12 +182,38 @@ func main() {
 		})
 	}
 
+	// creating routers for frontend and loadbalancer
+	mux := http.NewServeMux()
+
+	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
+
+	//for laodbalancer
+	mux.HandleFunc("/", lb)
+
+	//for frontend
+	mux.HandleFunc("/info-loaddistrix", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "templates/index.html")
+	})
+
+	mux.HandleFunc("/status-loadDistrix", func(w http.ResponseWriter, r *http.Request) {
+
+		// Generate HTML dynamically
+		for _, server := range serverPool.Backends {
+			w.Write([]byte(`
+				<tr>
+					<td>` + server.URL.Host + `</td>
+					<td>` + "Server Status" + fmt.Sprint(server.Alive) + `</td>
+					<td class="` + "Server Load" + `">` + fmt.Sprint(server.Weight) + `</td>
+				</tr>`))
+		}
+	})
+
 	server := &http.Server{
 		Addr:         ":8000",
 		WriteTimeout: 15 * time.Second,
 		ReadTimeout:  15 * time.Second,
 		IdleTimeout:  60 * time.Second,
-		Handler:      http.HandlerFunc(lb),
+		Handler:      mux,
 	}
 
 	// Channel to listen for interrupt or termination signals

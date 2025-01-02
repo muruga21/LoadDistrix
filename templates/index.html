@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Server Status</title>
+    <script src="https://unpkg.com/htmx.org"></script>
+    <link rel="icon" type="image/x-icon" href="https://cdn-icons-png.flaticon.com/512/5405/5405811.png">
+</head>
+<body>
+    <h1>Server Status</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>Server Name</th>
+                <th>IP Address</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody hx-get="/status-loadDistrix" hx-trigger="load every 5s" hx-swap="innerHTML">
+            <!-- Content dynamically fetched from /status -->
+        </tbody>
+    </table>
+    <h1 class="text-3xl font-bold underline bg-black text-white">
+        Hello world!
+    </h1>
+</body>
+<script src="https://cdn.tailwindcss.com"></script>
+</html>
